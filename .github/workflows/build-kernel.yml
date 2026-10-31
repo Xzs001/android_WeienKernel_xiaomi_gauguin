@@ -7,23 +7,24 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Maximize build disk space
-        uses: easimon/maximize-build-space@master
+      - name: Maximize Build Disk Space (Official LVM Expansion)
+        uses: ulysses2294/maximize-build-space@master # 使用更强大的第三方扩容动作
         with:
           root-reserve-mb: 512
           swap-size-mb: 2048
+          build-mount-path: '/home/runner/work'
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-haskell: 'true'
           remove-codeql: 'true'
           remove-docker-images: 'true'
 
-      - name: Check Free Disk Space
+      - name: Verify Free Disk Space
         run: df -h
 
       - name: Install Dependencies
         run: |
-          sudo apt update && sudo apt install -y \
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
             bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
             git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev \
             liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 \
@@ -46,10 +47,8 @@ jobs:
           export SUBARCH=arm64
           export PATH="$GITHUB_WORKSPACE/../clang/bin:$GITHUB_WORKSPACE/../gcc64/bin:$GITHUB_WORKSPACE/../gcc32/bin:$PATH"
 
-          # 生成配置
           make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 vendor/lito-perf_defconfig vendor/xiaomi/gauguin.config || make O=out ARCH=arm64 vendor/lito_defconfig
 
-          # 开始编译 (适当降低并发线程数防内存溢出，如用 -j8)
           make -j8 O=out ARCH=arm64 \
             CC=clang \
             CLANG_TRIPLE=aarch64-linux-gnu- \
