@@ -46,6 +46,14 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/TheWeienKernelProject/android_WeienKernel_xiaomi_gauguin.git kernel_source
 
+      - name: Fix Missing rekernel Kconfig Dependency
+        run: |
+          cd kernel_source
+          # 如果 drivers/Kconfig 里面引用了 missing 的 rekernel，直接将其安全注释掉或删除
+          if [ -f "drivers/Kconfig" ]; then
+            sed -i '/rekernel/d' drivers/Kconfig || true
+          fi
+
       - name: Build Kernel
         run: |
           cd kernel_source
@@ -66,20 +74,4 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git ../AnyKernel3
           
-          sed -i 's/device\.name1 = .*/device.name1 = gauguin;/g' ../AnyKernel3/anykernel.sh
-          sed -i 's/block = .*/block=\/dev\/block\/bootdevice\/by-name\/boot;/g' ../AnyKernel3/anykernel.sh
-          sed -i 's/is_slot_device = .*/is_slot_device=0;/g' ../AnyKernel3/anykernel.sh
-
-          cp kernel_source/out/arch/arm64/boot/Image.gz ../AnyKernel3/
-          if [ -f "kernel_source/out/arch/arm64/boot/dts/vendor/qcom/gauguin.dtb" ]; then
-              cp kernel_source/out/arch/arm64/boot/dts/vendor/qcom/gauguin.dtb ../AnyKernel3/dtb
-          fi
-
-          cd ../AnyKernel3
-          zip -r9 ../gauguin-droidspaces-kernel.zip * -x .git README.md *placeholder
-
-      - name: Upload Kernel Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: gauguin-droidspaces-kernel
-          path: /home/runner/work/android_WeienKernel_xiaomi_gauguin/gauguin-droidspaces-kernel.zip
+          sed -i 's/device\.name1 = .*/device.name1 = gauguin;/g' ../
