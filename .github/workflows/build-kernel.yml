@@ -16,7 +16,7 @@ jobs:
           remove-android: 'true'
           remove-haskell: 'true'
           remove-codeql: 'true'
-          remove-docker: 'true' # 额外清理 Docker 镜像占用的巨大空间
+          remove-docker-images: 'true'
 
       - name: Check Free Disk Space
         run: df -h
