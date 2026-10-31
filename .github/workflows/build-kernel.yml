@@ -7,20 +7,26 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Maximize Build Disk Space (Official LVM Expansion)
-        uses: ulysses2294/maximize-build-space@master # 使用更强大的第三方扩容动作
-        with:
-          root-reserve-mb: 512
-          swap-size-mb: 2048
-          build-mount-path: '/home/runner/work'
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
-
-      - name: Verify Free Disk Space
-        run: df -h
+      - name: Free Up Disk Space Manually
+        run: |
+          echo "=== 清理前的磁盘空间 ==="
+          df -h
+          
+          echo "=== 正在暴力清理虚拟机中的巨无霸无用软件 ==="
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/share/swift
+          sudo docker image prune --all --force
+          
+          sudo apt-get purge -y '^dotnet-' '^ghc-' 'google-chrome-*' 'firefox' 'powershell' 'openjdk-*' || true
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          
+          echo "=== 清理后的磁盘空间 ==="
+          df -h
 
       - name: Install Dependencies
         run: |
