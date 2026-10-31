@@ -1,7 +1,7 @@
 name: Build Xiaomi Gauguin Kernel
 
 on:
-  workflow_dispatch: # 允许你手动点击按钮触发编译
+  workflow_dispatch:
 
 jobs:
   build:
@@ -10,12 +10,16 @@ jobs:
       - name: Maximize build disk space
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 1024
-          swap-size-mb: 4096
+          root-reserve-mb: 512
+          swap-size-mb: 2048
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-haskell: 'true'
           remove-codeql: 'true'
+          remove-docker: 'true' # 额外清理 Docker 镜像占用的巨大空间
+
+      - name: Check Free Disk Space
+        run: df -h
 
       - name: Install Dependencies
         run: |
@@ -45,8 +49,8 @@ jobs:
           # 生成配置
           make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 vendor/lito-perf_defconfig vendor/xiaomi/gauguin.config || make O=out ARCH=arm64 vendor/lito_defconfig
 
-          # 开始编译
-          make -j$(nproc --all) O=out ARCH=arm64 \
+          # 开始编译 (适当降低并发线程数防内存溢出，如用 -j8)
+          make -j8 O=out ARCH=arm64 \
             CC=clang \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-android- \
@@ -57,12 +61,10 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git ../AnyKernel3
           
-          # 适配 gauguin
           sed -i 's/device\.name1 = .*/device.name1 = gauguin;/g' ../AnyKernel3/anykernel.sh
           sed -i 's/block = .*/block=\/dev\/block\/bootdevice\/by-name\/boot;/g' ../AnyKernel3/anykernel.sh
           sed -i 's/is_slot_device = .*/is_slot_device=0;/g' ../AnyKernel3/anykernel.sh
 
-          # 复制内核产物
           cp kernel_source/out/arch/arm64/boot/Image.gz ../AnyKernel3/
           if [ -f "kernel_source/out/arch/arm64/boot/dts/vendor/qcom/gauguin.dtb" ]; then
               cp kernel_source/out/arch/arm64/boot/dts/vendor/qcom/gauguin.dtb ../AnyKernel3/dtb
