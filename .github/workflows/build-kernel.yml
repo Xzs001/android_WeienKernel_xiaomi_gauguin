@@ -1,0 +1,78 @@
+name: Build Xiaomi Gauguin Kernel
+
+on:
+  workflow_dispatch: # 允许你手动点击按钮触发编译
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Maximize build disk space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 1024
+          swap-size-mb: 4096
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update && sudo apt install -y \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev \
+            liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 \
+            libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
+
+      - name: Clone Toolchains
+        run: |
+          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b.git ../clang
+          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git ../gcc64
+          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9.git ../gcc32
+
+      - name: Clone Kernel Source
+        run: |
+          git clone --depth=1 https://github.com/TheWeienKernelProject/android_WeienKernel_xiaomi_gauguin.git kernel_source
+
+      - name: Build Kernel
+        run: |
+          cd kernel_source
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$GITHUB_WORKSPACE/../clang/bin:$GITHUB_WORKSPACE/../gcc64/bin:$GITHUB_WORKSPACE/../gcc32/bin:$PATH"
+
+          # 生成配置
+          make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 vendor/lito-perf_defconfig vendor/xiaomi/gauguin.config || make O=out ARCH=arm64 vendor/lito_defconfig
+
+          # 开始编译
+          make -j$(nproc --all) O=out ARCH=arm64 \
+            CC=clang \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-android- \
+            CROSS_COMPILE_ARM32=arm-linux-androideabi- \
+            LLVM=1 LLVM_IAS=1
+
+      - name: Package with AnyKernel3
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git ../AnyKernel3
+          
+          # 适配 gauguin
+          sed -i 's/device\.name1 = .*/device.name1 = gauguin;/g' ../AnyKernel3/anykernel.sh
+          sed -i 's/block = .*/block=\/dev\/block\/bootdevice\/by-name\/boot;/g' ../AnyKernel3/anykernel.sh
+          sed -i 's/is_slot_device = .*/is_slot_device=0;/g' ../AnyKernel3/anykernel.sh
+
+          # 复制内核产物
+          cp kernel_source/out/arch/arm64/boot/Image.gz ../AnyKernel3/
+          if [ -f "kernel_source/out/arch/arm64/boot/dts/vendor/qcom/gauguin.dtb" ]; then
+              cp kernel_source/out/arch/arm64/boot/dts/vendor/qcom/gauguin.dtb ../AnyKernel3/dtb
+          fi
+
+          cd ../AnyKernel3
+          zip -r9 ../gauguin-droidspaces-kernel.zip * -x .git README.md *placeholder
+
+      - name: Upload Kernel Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gauguin-droidspaces-kernel
+          path: /home/runner/work/android_WeienKernel_xiaomi_gauguin/gauguin-droidspaces-kernel.zip
